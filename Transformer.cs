@@ -60,7 +60,6 @@ namespace OperationToDocumentationTRANS
                                                     Documents = new[]
                                                                     {
                                                                         document
-
                                                                     }
                                                 }
                        };
@@ -68,13 +67,86 @@ namespace OperationToDocumentationTRANS
 
         private static DocumentType GetDocument(ChangeRequestAbstractionType changeAbstraction)
         {
-            DocumentType document = new DocumentType
-                                        {
-                                            title = "Operations",
-                                            name = "Operations",
-                                            Content = new HeaderType[0] // TODO: Content call here
-                                        };
+            ChangeRequestPackageType package = changeAbstraction.Item as ChangeRequestPackageType;
+            ChangeRequestsType requests = changeAbstraction.Item as ChangeRequestsType;
+            DocumentType document;
+            if (package != null)
+                document = GetChangeRequestPackageDocument(package);
+            else if (requests != null)
+                document = GetMiscChangeRequestsDocument(requests);
+            else
+                throw new NotSupportedException("Not supported item type: " + (changeAbstraction.Item ?? "nullitem").ToString());
             return document;
+        }
+
+        private static DocumentType GetMiscChangeRequestsDocument(ChangeRequestsType requests)
+        {
+            return new DocumentType()
+                       {
+                           name = "Ungrouped change requests",
+                           title = "Ungrouped change requests",
+                           Content = requests.ChangeRequest.Select(GetContent).ToArray()
+
+                       };
+        }
+
+        private static HeaderType GetContent(ChangeRequestType cr)
+        {
+            HeaderType header = new HeaderType
+                                    {
+                                        text = cr.name,
+                                        level = 1,
+                                    };
+            header.AddHeaderTextContent(GetStyleName(cr.priority.ToString()), cr.Description);
+            return header;
+        }
+
+        private static DocumentType GetChangeRequestPackageDocument(ChangeRequestPackageType package)
+        {
+            List<HeaderType> headers = new List<HeaderType>();
+            HeaderType packageSummary = GetPackageSummary(package);
+            headers.Add(packageSummary);
+            headers.AddRange(package.PackagedChangeRequest.Select(GetPackagedChangeRequestHeader));
+            DocumentType doc = new DocumentType
+                       {
+                           name = package.name,
+                           title = package.name,
+                           
+                       };
+            return doc;
+        }
+
+        private static HeaderType GetPackagedChangeRequestHeader(PackagedChangeRequestType pcr)
+        {
+            HeaderType header = new HeaderType
+            {
+                text = pcr.name,
+                level = 1
+            };
+            header.AddHeaderTextContent(GetStyleName(pcr.changeType.ToString()), pcr.Description);
+            return header;
+        }
+
+        private static HeaderType GetPackageSummary(ChangeRequestPackageType package)
+        {
+            HeaderType header = new HeaderType
+                                    {
+                                        text = "Summary",
+                                        level = 1
+                                    };
+            string styleName = GetStyleName(package.priority.ToString());
+            header.AddHeaderTextContent(styleName, "Priority: " + package.priority);
+            header.AddHeaderTextContent(null, "Due date: " + package.dueDate.ToShortDateString());
+            int newFunctionality =
+                package.PackagedChangeRequest.Count(
+                    cr => cr.changeType == PackagedChangeRequestTypeChangeType.NewFunctionality);
+            int changeToExistingFunctionality =
+                package.PackagedChangeRequest.Count(
+                    cr => cr.changeType == PackagedChangeRequestTypeChangeType.ChangeToExistingFunctionality);
+            int totalChanges = newFunctionality + changeToExistingFunctionality;
+            header.AddHeaderTextContent(null, String.Format("New Functionality: {0}  Change to existing: {1}  Total changes: {2}", newFunctionality, changeToExistingFunctionality,
+                totalChanges));
+            return header;
         }
 
 #if never // Example implementation below
@@ -331,5 +403,26 @@ namespace OperationToDocumentationTRANS
             }
         }
 #endif
+
+        private static string GetStyleName(string stateString)
+        {
+            switch (stateString)
+            {
+                case "Undefined":
+                case "Normal":
+                case "Low":
+                case null:
+                    return null;
+                case "Urgent":
+                case "ChangeToExistingFunctionality":
+                    return "color:blue;font-weight:bold;font-style:italic";
+                case "Critical":
+                case "NewFunctionality":
+                    return "color:red;font-weight:bold;text-decoration:underline";
+                default:
+                    throw new NotSupportedException("State string value: " + stateString);
+            }
+        }
+
     }
 }
