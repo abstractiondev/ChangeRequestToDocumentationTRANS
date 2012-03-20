@@ -113,6 +113,7 @@ namespace OperationToDocumentationTRANS
                            title = package.name,
                            
                        };
+            doc.Content = headers.ToArray();
             return doc;
         }
 
